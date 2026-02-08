@@ -4,71 +4,63 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.viikko1.model.Task
 import com.example.viikko1.viewmodel.TaskViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: TaskViewModel = viewModel()
+    viewModel: TaskViewModel,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
     val tasks by viewModel.tasks.collectAsState()
-    var newTaskTitle by remember { mutableStateOf("") }
+
+    var showAddDialog by remember { mutableStateOf(false) }
     var selectedTask by remember { mutableStateOf<Task?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .statusBarsPadding()
-    ) {
-        Text(
-            text = "Minun Tehtävälista",
-            fontSize = 24.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextField(
-                value = newTaskTitle,
-                onValueChange = { newTaskTitle = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Uusi tehtävä") }
-            )
-
-            Button(onClick = {
-                if (newTaskTitle.isNotBlank()) {
-                    viewModel.addTask(
-                        Task(
-                            id = (tasks.maxOfOrNull { it.id } ?: 0) + 1,
-                            title = newTaskTitle,
-                            description = "",
-                            priority = 1,
-                            dueDate = "2026-02-01",
-                            done = false
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Minun tehtävät") },
+                actions = {
+                    IconButton(onClick = onNavigateToCalendar) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Kalenteri"
                         )
-                    )
-                    newTaskTitle = ""
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Asetukset"
+                        )
+                    }
                 }
-            }) {
-                Text("Lisää")
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Lisää tehtävä")
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
+    ) { paddingValues ->
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(tasks, key = { it.id }) { task ->
@@ -81,8 +73,29 @@ fun HomeScreen(
         }
     }
 
+    // ➕ ADD TASK
+    if (showAddDialog) {
+        AddTaskDialog(
+            onDismiss = { showAddDialog = false },
+            onSave = { title, description ->
+                viewModel.addTask(
+                    Task(
+                        id = (tasks.maxOfOrNull { it.id } ?: 0) + 1,
+                        title = title,
+                        description = description,
+                        priority = 1,
+                        dueDate = "2026-02-01",
+                        done = false
+                    )
+                )
+                showAddDialog = false
+            }
+        )
+    }
+
+    // ✏️ EDIT TASK
     if (selectedTask != null) {
-        DetailScreenDialog(
+        EditTaskDialog(
             task = selectedTask!!,
             onDismiss = { selectedTask = null },
             onDelete = {
@@ -123,16 +136,61 @@ fun TaskItem(
                 text = task.title,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 8.dp)
+                    .padding(start = 8.dp),
+                fontSize = 16.sp
             )
-
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreenDialog(
+fun AddTaskDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Lisää tehtävä") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Otsikko") }
+                )
+                TextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Kuvaus") }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        onSave(title, description)
+                    }
+                }
+            ) {
+                Text("Tallenna")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Peruuta")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditTaskDialog(
     task: Task,
     onDismiss: () -> Unit,
     onDelete: (Task) -> Unit,
@@ -159,7 +217,9 @@ fun DetailScreenDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(task.copy(title = title, description = description)) }) {
+            Button(onClick = {
+                onSave(task.copy(title = title, description = description))
+            }) {
                 Text("Tallenna")
             }
         },
